@@ -13,18 +13,19 @@ load_dotenv(dotenv_path="./.env")
 JSONResponseType = Union[dict[str, Any], list[dict[str, Any]]]
 
 
-def generate_us_phone_number() -> str:
-    area_code = random.randint(200, 999)
-    exchange_code = random.randint(200, 999)
-    line_number = random.randint(1000, 9999)
-
-    return f"{area_code}-{exchange_code:03}-{line_number:04}"
-
-
 class EnvironmentVariableNotSet(BaseException):
     """Raised when an environment variable is not set."""
 
     pass
+
+
+def generate_us_phone_number() -> str:
+    """Generates a random US phone number."""
+    area_code = random.randint(200, 999)  # nosec: B311
+    exchange_code = random.randint(200, 999)  # nosec: B311
+    line_number = random.randint(1000, 9999)  # nosec: B311
+
+    return f"{area_code}-{exchange_code:03}-{line_number:04}"
 
 
 class MozioAPIClient:
@@ -53,7 +54,7 @@ class MozioAPIClient:
         https://api-testing.mozio.com/v2/docs/#tag/v2/operation/v2_search_create
         """
         url = f"{self.base_url}search/"
-        response = requests.post(url, headers=self.headers, json=payload)
+        response = requests.post(url, headers=self.headers, json=payload, timeout=10)
         if not response.ok:
             raise Exception(response.json())
 
@@ -66,7 +67,7 @@ class MozioAPIClient:
         https://api-testing.mozio.com/v2/docs/#tag/v2/operation/v2_search_poll_retrieve
         """
         url = f"{self.base_url}search/{search_id}/poll/"
-        response = requests.get(url, headers=self.headers)
+        response = requests.get(url, headers=self.headers, timeout=10)
         if not response.ok:
             raise Exception(response.json())
 
@@ -79,7 +80,7 @@ class MozioAPIClient:
         https://api-testing.mozio.com/v2/docs/#tag/v2/operation/v2_reservations_create
         """
         url = f"{self.base_url}reservations/"
-        response = requests.post(url, headers=self.headers, json=payload)
+        response = requests.post(url, headers=self.headers, json=payload, timeout=10)
         if not response.ok:
             raise Exception(response.json())
 
@@ -92,15 +93,20 @@ class MozioAPIClient:
         https://api-testing.mozio.com/v2/docs/#tag/v2/operation/v2_reservations_poll_retrieve
         """
         url = f"{self.base_url}reservations/{search_id}/poll/"
-        response = requests.get(url, headers=self.headers)
+        response = requests.get(url, headers=self.headers, timeout=10)
         if not response.ok:
             raise Exception(response.json())
 
         return response.json()
 
     def cancel(self, reservation_id: str) -> bool:
+        """Handles the v2_reservations_destroy endpoint.
+
+        Read more:
+        https://api-testing.mozio.com/v2/docs/#tag/v2/operation/v2_reservations_destroy
+        """
         url = f"{self.base_url}reservations/{reservation_id}"
-        response = requests.delete(url, headers=self.headers)
+        response = requests.delete(url, headers=self.headers, timeout=10)
         if not response.ok:
             raise Exception(response.json())
 
