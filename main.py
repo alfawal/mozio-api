@@ -19,23 +19,19 @@ class EnvironmentVariableNotSet(BaseException):
 
 
 class MozioAPIClient:
+    BASE_URL = os.getenv("MOZIO_API_BASE_URL")
+    API_KEY = os.getenv("MOZIO_API_KEY")
+    POLL_MAX_REQUESTS = 20
+
     def __init__(self) -> None:
-        self.api_key = os.getenv("MOZIO_API_KEY")
-        if not self.api_key:
-            raise EnvironmentVariableNotSet(
-                "The MOZIO_API_KEY environment variable is not set and is required to run this script."
-            )
-        self.base_url = (
-            # Add a trailing slash to the base URL if it doesn't have one
-            env_base_url.rstrip("/") + "/"
-            if (env_base_url := os.getenv("MOZIO_API_BASE_URL"))
-            else None
-        )
-        if not self.base_url:
-            raise EnvironmentVariableNotSet(
-                "The MOZIO_API_BASE_URL environment variable is not set and is required to run this script."
-            )
-        self.headers = {"API-KEY": self.api_key}
+        if not MozioAPIClient.BASE_URL:
+            raise EnvironmentVariableNotSet("MOZIO_API_BASE_URL environment variable is not set.")
+
+        if not MozioAPIClient.API_KEY:
+            raise EnvironmentVariableNotSet("MOZIO_API_KEY environment variable is not set.")
+
+        self.base_url = MozioAPIClient.BASE_URL.rstrip("/") + "/"
+        self.headers = {"API-KEY": MozioAPIClient.API_KEY}
 
     def search(self, payload: dict) -> JSONResponseType:
         """Handles the v2_search_create endpoint.
@@ -109,7 +105,7 @@ if __name__ == "__main__":
     fake = Faker(locale="en_US")
     mozio = MozioAPIClient()
 
-    # Search
+    # Search with the following payload
     search_payload = {
         "start_address": "44 Tehama Street, San Francisco, CA, USA",
         "end_address": "SFO",
@@ -127,30 +123,27 @@ if __name__ == "__main__":
     # Use the search_id from the search response in the poll_search method.
     # Call the poll search endpoint and collect the results from it until
     # the "more_coming" field is False, sleeping for 2 seconds between each call.
-    # Limit the number of calls to 5.
+    # Limit the number of calls to MozioAPIClient.POLL_MAX_REQUESTS.
     print("Calling the poll search endpoint...", end=" ")
 
     search_id = search_response["search_id"]
-    has_more_results = True
     all_poll_results = []
-    search_poll_requests_counter = 0
 
-    while has_more_results:
-        if search_poll_requests_counter > 20:
-            raise Exception("The search poll requests counter exceeded the limit of 20.")
-        search_poll_requests_counter += 1
-
+    for search_poll_requests_counter in range(1, MozioAPIClient.POLL_MAX_REQUESTS + 1):
         poll_search_response = mozio.poll_search(search_id)
         all_poll_results.extend(poll_search_response["results"])
 
         has_more_results = poll_search_response["more_coming"]
-        if has_more_results:
-            time.sleep(2)
+        if not has_more_results:
+            print(Fore.GREEN + "Done" + Fore.YELLOW + f" ({search_poll_requests_counter} search poll requests)")
+            break
 
-    print(Fore.GREEN + "Done" + Fore.YELLOW + f" ({search_poll_requests_counter} search poll requests)")
+        time.sleep(2)
+    else:
+        raise Exception(f"The search poll requests exceeded the limit of {MozioAPIClient.POLL_MAX_REQUESTS}.")
 
     # Book
-    # Pick the cheapest vehicle available.
+    # Pick the cheapest vehicle available and book it.
     cheapest_vehicle = min(
         all_poll_results,
         key=lambda vehicle: float(vehicle["total_price"]["total_price"]["value"]),
@@ -170,21 +163,19 @@ if __name__ == "__main__":
 
     print("Calling the booking (reservation) endpoint...", end=" ")
     book_response = mozio.book(book_payload)
-    is_pending_reservation = True
-    confirmation_number, reservation_id = "", ""
-    reservation_poll_requests_counter = 0
 
     # Call the poll_reservation endpoint and check the status of the reservation
     # until it's either completed or failed, sleeping for 2 seconds between each call.
-    # Limit the number of calls to 5.
-    while is_pending_reservation:
-        if reservation_poll_requests_counter > 20:
-            raise Exception("The reservation poll requests counter exceeded the limit of 20.")
-        reservation_poll_requests_counter += 1
+    # Limit the number of calls to MozioAPIClient.POLL_MAX_REQUESTS.
+
+    reservation_id = None
+    for reservation_poll_requests_counter in range(1, MozioAPIClient.POLL_MAX_REQUESTS + 1):
         poll_reservation_response = mozio.poll_reservation(search_id)
         poll_reservation_status = poll_reservation_response.get("status", "").lower()
+
         is_pending_reservation = poll_reservation_status == "pending"
         is_completed_reservation = poll_reservation_status == "completed"
+
         if is_pending_reservation:
             time.sleep(2)
         elif is_completed_reservation:
@@ -195,11 +186,15 @@ if __name__ == "__main__":
                 Fore.GREEN + "Done" + Fore.YELLOW + f" ({reservation_poll_requests_counter} reservation poll requests)"
             )
             print(Fore.CYAN + f"\t- Confirmation Number: {confirmation_number}\n\t- Reservation ID: {reservation_id}")
+            break
         else:
             print(Fore.RED + "Failed" + Fore.YELLOW + f" (Status: {poll_reservation_status})")
+            break
+    else:
+        raise Exception(f"The reservation poll requests exceeded the limit of {MozioAPIClient.POLL_MAX_REQUESTS}.")
 
     # Cancel
-    if not confirmation_number or not reservation_id:
+    if not reservation_id:
         print(Fore.CYAN + "Skipping the cancellation.")
     else:
         print("Calling the cancellation endpoint...", end=" ")
