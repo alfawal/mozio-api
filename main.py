@@ -1,5 +1,4 @@
 import os
-import random
 import time
 from typing import Any, Union
 
@@ -17,15 +16,6 @@ class EnvironmentVariableNotSet(BaseException):
     """Raised when an environment variable is not set."""
 
     pass
-
-
-def generate_us_phone_number() -> str:
-    """Generates a random US phone number."""
-    area_code = random.randint(200, 999)  # nosec: B311
-    exchange_code = random.randint(200, 999)  # nosec: B311
-    line_number = random.randint(1000, 9999)  # nosec: B311
-
-    return f"{area_code}-{exchange_code:03}-{line_number:04}"
 
 
 class MozioAPIClient:
@@ -170,7 +160,7 @@ if __name__ == "__main__":
         "last_name": fake.last_name(),
         "email": fake.email(),
         "country_code_name": "US",
-        "phone_number": generate_us_phone_number(),
+        "phone_number": "(855) 980 5669",
         "airline_iata_code": "UA",
         "flight_number": "1201",
         "result_id": cheapest_vehicle["result_id"],
