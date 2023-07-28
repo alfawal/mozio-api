@@ -36,10 +36,10 @@ python3 -m venv venv
    source venv/bin/activate
    ```
 
-   - Windows:
+   - Windows (Command Prompt (CMD)):
 
    ```bash
-   venv\Scripts\activate.bat
+   venv\Scripts\activate
    ```
 
 5. Install the required Python packages.
