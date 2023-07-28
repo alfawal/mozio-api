@@ -153,7 +153,7 @@ if __name__ == "__main__":
     # Pick the cheapest vehicle available.
     cheapest_vehicle = min(
         all_poll_results,
-        key=lambda vehicle: vehicle["total_price"]["total_price"]["value"],
+        key=lambda vehicle: float(vehicle["total_price"]["total_price"]["value"]),
     )
     book_payload = {
         "first_name": fake.first_name(),
