@@ -60,6 +60,17 @@ Simply execute the script using Python:
 python3 main.py
 ```
 
+Example output:
+
+```bash
+Calling the search endpoint... Done
+Calling the poll search endpoint... Done (2 search poll requests)
+Calling the booking (reservation) endpoint... Done (2 reservation poll requests)
+	- Confirmation Number: SRYDE2500112777
+	- Reservation ID: aba394f448fa4da0b15221baf1dcd4a1
+Calling the cancellation endpoint... Done
+```
+
 ## Script Flow
 
 1. The script imports the required modules, initializes necessary environment variables, and defines custom exceptions.
