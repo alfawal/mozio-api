@@ -11,14 +11,39 @@ Before running this script, ensure you have the following prerequisites:
 ## Setup
 
 1. Clone this repository to your local machine.
+
 ```bash
 git clone https://github.com/alfawal/mozio-api.git
 ```
+
 2. Navigate to the project directory.
+
 ```bash
-cd mazio-api
+cd mozio-api
 ```
-3. Install the required Python packages.
+
+3. Create a new virtual environment.
+
+```bash
+python3 -m venv venv
+```
+
+4. Activate the virtual environment.
+
+   - MacOS/Linux:
+
+   ```bash
+   source venv/bin/activate
+   ```
+
+   - Windows:
+
+   ```bash
+   venv\Scripts\activate.bat
+   ```
+
+5. Install the required Python packages.
+
 ```bash
 pip3 install -r requirements.txt
 ```
