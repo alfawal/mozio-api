@@ -101,6 +101,10 @@ class MozioAPIClient:
     def search_and_gather_results(self, search_payload: dict) -> tuple[str, list[Optional[dict[str, Any]]]]:
         """Searches and gathers the results from the poll search endpoint.
 
+        Calls the search endpoint and then calls the poll search endpoint with the obtained search_id
+        until the search results are all gathered, sleeping for 2 seconds between each call, with a maximum
+        of MozioAPIClient.POLL_MAX_REQUESTS calls.
+
         Args:
             search_payload (dict): The search payload to be used in the search endpoint.
 
@@ -114,10 +118,6 @@ class MozioAPIClient:
         search_response = self.search(search_payload)
         print(Fore.GREEN + "Done")
 
-        # Use the search_id from the search response in the poll_search method.
-        # Call the poll search endpoint and collect the results from it until
-        # the "more_coming" field is False, sleeping for 2 seconds between each call.
-        # Limit the number of calls to MozioAPIClient.POLL_MAX_REQUESTS.
         print("Calling the poll search endpoint...", end=" ")
 
         search_id = search_response["search_id"]
@@ -138,10 +138,15 @@ class MozioAPIClient:
 
         return search_id, all_poll_results
 
-    def book_and_get_status(self, book_payload: dict) -> Optional[str]:
+    def book_and_get_status(self, search_id: str, book_payload: dict) -> Optional[str]:
         """Books and gets the status of the reservation.
 
+        Calls the book endpoint and then calls the poll_reservation endpoint until the reservation
+        status is either failed or completed, sleeping for 2 seconds between each call, with a maximum
+        of MozioAPIClient.POLL_MAX_REQUESTS calls.
+
         Args:
+            search_id (str): The search_id to be used in the poll_reservation endpoint.
             book_payload (dict): The book payload to be used in the book endpoint.
 
         Returns:
@@ -152,10 +157,6 @@ class MozioAPIClient:
         """
         print("Calling the booking (reservation) endpoint...", end=" ")
         self.book(book_payload)
-
-        # Call the poll_reservation endpoint and check the status of the reservation
-        # until it's either completed or failed, sleeping for 2 seconds between each call.
-        # Limit the number of calls to MozioAPIClient.POLL_MAX_REQUESTS.
 
         reservation_id = None
         for reservation_poll_requests_counter in range(1, MozioAPIClient.POLL_MAX_REQUESTS + 1):
@@ -229,7 +230,7 @@ if __name__ == "__main__":
         # "provider": "Dummy External Provider",
     }
 
-    reservation_id = mozio.book_and_get_status(book_payload)
+    reservation_id = mozio.book_and_get_status(search_id, book_payload)
 
     # Cancel
     if not reservation_id:
