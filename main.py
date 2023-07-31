@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import requests
 from colorama import Fore, init
@@ -98,6 +98,97 @@ class MozioAPIClient:
 
         return True
 
+    def search_and_gather_results(self, search_payload: dict) -> tuple[str, list[Optional[dict[str, Any]]]]:
+        """Searches and gathers the results from the poll search endpoint.
+
+        Calls the search endpoint and then calls the poll search endpoint with the obtained search_id
+        until the search results are all gathered, sleeping for 2 seconds between each call, with a maximum
+        of MozioAPIClient.POLL_MAX_REQUESTS calls.
+
+        Args:
+            search_payload (dict): The search payload to be used in the search endpoint.
+
+        Returns:
+            tuple[str, list[Optional[dict[str, Any]]]]: The search_id and the list of results.
+
+        Raises:
+            Exception: If the search poll requests exceeded the limit of MozioAPIClient.POLL_MAX_REQUESTS.
+        """
+        print("Calling the search endpoint...", end=" ")
+        search_response = self.search(search_payload)
+        print(Fore.GREEN + "Done")
+
+        print("Calling the poll search endpoint...", end=" ")
+
+        search_id = search_response["search_id"]
+        all_poll_results = []
+
+        for search_poll_requests_counter in range(1, MozioAPIClient.POLL_MAX_REQUESTS + 1):
+            poll_search_response = mozio.poll_search(search_id)
+            all_poll_results.extend(poll_search_response["results"])
+
+            has_more_results = poll_search_response["more_coming"]
+            if not has_more_results:
+                print(Fore.GREEN + "Done" + Fore.YELLOW + f" ({search_poll_requests_counter} search poll requests)")
+                break
+
+            time.sleep(2)
+        else:
+            raise Exception(f"The search poll requests exceeded the limit of {MozioAPIClient.POLL_MAX_REQUESTS}.")
+
+        return search_id, all_poll_results
+
+    def book_and_get_status(self, search_id: str, book_payload: dict) -> Optional[str]:
+        """Books and gets the status of the reservation.
+
+        Calls the book endpoint and then calls the poll_reservation endpoint until the reservation
+        status is either failed or completed, sleeping for 2 seconds between each call, with a maximum
+        of MozioAPIClient.POLL_MAX_REQUESTS calls.
+
+        Args:
+            search_id (str): The search_id to be used in the poll_reservation endpoint.
+            book_payload (dict): The book payload to be used in the book endpoint.
+
+        Returns:
+            Optional[str]: The reservation_id if the reservation is completed, otherwise None.
+
+        Raises:
+            Exception: If the reservation poll requests exceeded the limit of MozioAPIClient.POLL_MAX_REQUESTS.
+        """
+        print("Calling the booking (reservation) endpoint...", end=" ")
+        self.book(book_payload)
+
+        reservation_id = None
+        for reservation_poll_requests_counter in range(1, MozioAPIClient.POLL_MAX_REQUESTS + 1):
+            poll_reservation_response = self.poll_reservation(search_id)
+            poll_reservation_status = poll_reservation_response.get("status", "").lower()
+
+            is_pending_reservation = poll_reservation_status == "pending"
+            is_completed_reservation = poll_reservation_status == "completed"
+
+            if is_pending_reservation:
+                time.sleep(2)
+            elif is_completed_reservation:
+                reservation = poll_reservation_response["reservations"][0]
+                confirmation_number = reservation["confirmation_number"]
+                reservation_id = reservation["id"]
+                print(
+                    Fore.GREEN
+                    + "Done"
+                    + Fore.YELLOW
+                    + f" ({reservation_poll_requests_counter} reservation poll requests)"
+                )
+                print(
+                    Fore.CYAN + f"\t- Confirmation Number: {confirmation_number}\n\t- Reservation ID: {reservation_id}"
+                )
+                break
+            else:
+                print(Fore.RED + "Failed" + Fore.YELLOW + f" (Status: {poll_reservation_status})")
+                break
+        else:
+            raise Exception(f"The reservation poll requests exceeded the limit of {MozioAPIClient.POLL_MAX_REQUESTS}.")
+        return reservation_id
+
 
 if __name__ == "__main__":
     init(autoreset=True)
@@ -116,36 +207,14 @@ if __name__ == "__main__":
         "campaign": "Abdulrahman Alfawal",
     }
 
-    print("Calling the search endpoint...", end=" ")
-    search_response = mozio.search(search_payload)
-    print(Fore.GREEN + "Done")
-
-    # Use the search_id from the search response in the poll_search method.
-    # Call the poll search endpoint and collect the results from it until
-    # the "more_coming" field is False, sleeping for 2 seconds between each call.
-    # Limit the number of calls to MozioAPIClient.POLL_MAX_REQUESTS.
-    print("Calling the poll search endpoint...", end=" ")
-
-    search_id = search_response["search_id"]
-    all_poll_results = []
-
-    for search_poll_requests_counter in range(1, MozioAPIClient.POLL_MAX_REQUESTS + 1):
-        poll_search_response = mozio.poll_search(search_id)
-        all_poll_results.extend(poll_search_response["results"])
-
-        has_more_results = poll_search_response["more_coming"]
-        if not has_more_results:
-            print(Fore.GREEN + "Done" + Fore.YELLOW + f" ({search_poll_requests_counter} search poll requests)")
-            break
-
-        time.sleep(2)
-    else:
-        raise Exception(f"The search poll requests exceeded the limit of {MozioAPIClient.POLL_MAX_REQUESTS}.")
+    search_id, all_search_results = mozio.search_and_gather_results(search_payload)
+    if not all_search_results:
+        raise Exception("No results found with the given search payload.")
 
     # Book
     # Pick the cheapest vehicle available and book it.
     cheapest_vehicle = min(
-        all_poll_results,
+        all_search_results,
         key=lambda vehicle: float(vehicle["total_price"]["total_price"]["value"]),
     )
     book_payload = {
@@ -161,37 +230,7 @@ if __name__ == "__main__":
         # "provider": "Dummy External Provider",
     }
 
-    print("Calling the booking (reservation) endpoint...", end=" ")
-    book_response = mozio.book(book_payload)
-
-    # Call the poll_reservation endpoint and check the status of the reservation
-    # until it's either completed or failed, sleeping for 2 seconds between each call.
-    # Limit the number of calls to MozioAPIClient.POLL_MAX_REQUESTS.
-
-    reservation_id = None
-    for reservation_poll_requests_counter in range(1, MozioAPIClient.POLL_MAX_REQUESTS + 1):
-        poll_reservation_response = mozio.poll_reservation(search_id)
-        poll_reservation_status = poll_reservation_response.get("status", "").lower()
-
-        is_pending_reservation = poll_reservation_status == "pending"
-        is_completed_reservation = poll_reservation_status == "completed"
-
-        if is_pending_reservation:
-            time.sleep(2)
-        elif is_completed_reservation:
-            reservation = poll_reservation_response["reservations"][0]
-            confirmation_number = reservation["confirmation_number"]
-            reservation_id = reservation["id"]
-            print(
-                Fore.GREEN + "Done" + Fore.YELLOW + f" ({reservation_poll_requests_counter} reservation poll requests)"
-            )
-            print(Fore.CYAN + f"\t- Confirmation Number: {confirmation_number}\n\t- Reservation ID: {reservation_id}")
-            break
-        else:
-            print(Fore.RED + "Failed" + Fore.YELLOW + f" (Status: {poll_reservation_status})")
-            break
-    else:
-        raise Exception(f"The reservation poll requests exceeded the limit of {MozioAPIClient.POLL_MAX_REQUESTS}.")
+    reservation_id = mozio.book_and_get_status(search_id, book_payload)
 
     # Cancel
     if not reservation_id:
