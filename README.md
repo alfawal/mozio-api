@@ -2,6 +2,8 @@
 
 This Python script interacts with the Mozio API to perform a series of operations, such as searching for transportation services, booking a ride, and cancelling a reservation. The script is well-documented and easy to follow, and it requires the use of environment variables for the Mozio API key and base URL.
 
+_You can also check out [this PR](https://github.com/alfawal/mozio-api/pull/1) that was pushed after submitting. An alternative way (my preferred) to handle operations._
+
 ## Prerequisites
 
 Before running this script, ensure you have the following prerequisites:
